@@ -17,12 +17,9 @@ import adjustText  # pip install adjustText
 #import pygraphviz  # Now it should work
 import os
 import sys
-# Ensure pygraphviz is installed before importing
-try:
-    import pygraphviz
-except ImportError:
-    os.system(f"{sys.executable} -m pip install pygraphviz")
-    import pygraphviz
+os.system("pip install pygraphviz")
+import pygraphviz  # Now it should work
+
 
 
 # ---------------------------
