@@ -1,13 +1,14 @@
 import os
-import subprocess
 import sys
+import subprocess
 
 try:
     import pygraphviz
 except ImportError:
     print("Installing pygraphviz...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "pygraphviz"])
+    subprocess.run([sys.executable, "-m", "pip", "install", "--no-cache-dir", "pygraphviz"], check=True)
     import pygraphviz  # Try importing again
+
 
 import streamlit as st
 import pandas as pd
