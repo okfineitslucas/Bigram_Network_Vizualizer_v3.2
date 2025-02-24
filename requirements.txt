@@ -1,4 +1,10 @@
-pygraphviz
+streamlit
+pandas
+numpy
+networkx
+matplotlib
 spacy
-spacy[models]
-en-core-web-sm
+nltk
+openpyxl
+pygraphviz
+adjustText
