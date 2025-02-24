@@ -1,13 +1,23 @@
+import subprocess
+
+print("🔍 Checking installed packages in Streamlit Cloud...")
+subprocess.run(["pip", "list"])
+
 import os
 import sys
 import subprocess
 
+print("🔧 Ensuring system Graphviz is installed...")
+subprocess.run(["apt-get", "update"])
+subprocess.run(["apt-get", "install", "-y", "graphviz", "graphviz-dev"])
+
+# Now try PyGraphviz
 try:
     import pygraphviz
 except ImportError:
-    print("Installing pygraphviz...")
-    subprocess.run([sys.executable, "-m", "pip", "install", "--no-cache-dir", "pygraphviz"], check=True)
-    import pygraphviz  # Try importing again
+    print("❌ PyGraphviz missing. Installing manually...")
+    subprocess.run(["pip", "install", "--no-cache-dir", "--force-reinstall", "pygraphviz"])
+    import pygraphviz  # Try again
 
 
 import streamlit as st
