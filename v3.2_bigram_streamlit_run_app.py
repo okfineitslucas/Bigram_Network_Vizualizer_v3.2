@@ -15,7 +15,6 @@ import math
 import time
 import adjustText  # pip install adjustText
 import os
-os.system("pip install pygraphviz")
 import pygraphviz  # Now it should work
 
 
