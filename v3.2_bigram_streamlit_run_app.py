@@ -93,7 +93,13 @@ lemmatizer = WordNetLemmatizer()
 # ---------------------------
 # 5) spaCy Model
 # ---------------------------
-nlp = spacy.load("en_core_web_sm", disable=["parser","tagger"])
+import spacy
+try:
+    nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger"])
+except OSError:
+    import subprocess
+    subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
+    nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger"])
 
 # ---------------------------
 # 6) Stopwords & Preprocessing
