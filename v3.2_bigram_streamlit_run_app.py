@@ -15,10 +15,16 @@ import math
 import time
 import adjustText  # pip install adjustText
 #import pygraphviz  # Now it should work
-import os
 import sys
 os.system("pip install pygraphviz")
-import pygraphviz  # Now it should work
+# import pygraphviz  # Now it should work
+import os
+try:
+    import pygraphviz
+except ModuleNotFoundError:
+    os.system("pip install pygraphviz")
+    import pygraphviz
+
 
 
 
