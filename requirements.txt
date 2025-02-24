@@ -1,10 +1,2 @@
-streamlit
-pandas
-numpy
-networkx
-matplotlib
-spacy
-nltk
-openpyxl
 pygraphviz
-adjustText
+spacy
