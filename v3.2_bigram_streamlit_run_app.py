@@ -1,3 +1,7 @@
+import os
+os.system("pip install pygraphviz")
+import pygraphviz  # Now it should work
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -16,14 +20,7 @@ import time
 import adjustText  # pip install adjustText
 #import pygraphviz  # Now it should work
 import sys
-os.system("pip install pygraphviz")
-# import pygraphviz  # Now it should work
-import os
-try:
-    import pygraphviz
-except ModuleNotFoundError:
-    os.system("pip install pygraphviz")
-    import pygraphviz
+
 
 
 
