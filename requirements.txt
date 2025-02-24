@@ -1,2 +1,4 @@
 pygraphviz
 spacy
+spacy[models]
+en-core-web-sm
