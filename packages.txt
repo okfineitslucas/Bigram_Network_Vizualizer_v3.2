@@ -1,3 +1,2 @@
 graphviz
-graphviz-dev
 libgraphviz-dev

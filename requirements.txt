@@ -8,3 +8,8 @@ nltk
 openpyxl
 adjustText
 pygraphviz
+
+# The official spaCy English model (en_core_web_sm) is only hosted on GitHub.
+# Adding this line means Streamlit Cloud will install it at build time.
+# (Change version 3.8.0 to whatever your target version is.)
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl

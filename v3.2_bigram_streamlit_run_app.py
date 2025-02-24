@@ -1,25 +1,3 @@
-import subprocess
-
-print("🔍 Checking installed packages in Streamlit Cloud...")
-subprocess.run(["pip", "list"])
-
-import os
-import sys
-import subprocess
-
-print("🔧 Ensuring system Graphviz is installed...")
-subprocess.run(["apt-get", "update"])
-subprocess.run(["apt-get", "install", "-y", "graphviz", "graphviz-dev"])
-
-# Now try PyGraphviz
-try:
-    import pygraphviz
-except ImportError:
-    print("❌ PyGraphviz missing. Installing manually...")
-    subprocess.run(["pip", "install", "--no-cache-dir", "--force-reinstall", "pygraphviz"])
-    import pygraphviz  # Try again
-
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -35,13 +13,7 @@ import spacy
 from io import BytesIO, StringIO
 import math
 import time
-import adjustText  # pip install adjustText
-#import pygraphviz  # Now it should work
-import sys
-
-
-
-
+import adjustText
 
 # ---------------------------
 # 1) Streamlit Layout Config
@@ -60,7 +32,7 @@ Analyze co-occurring words in **two** layout styles:
 **How to Use**:
 1. Upload a CSV/Excel file with text data.  
 2. Pick how many terms & min bigram frequency.  
-3. Preview data, then click **Generate** to see your chosen layout.  
+3. Preview your data, then click **Generate** to see your chosen layout.  
 
 **Now** with BFS-based subgraphs, sfdp radial or hierarchical flow, minimized label collisions, and a more cohesive structure.  
 
@@ -103,15 +75,13 @@ lemmatizer = WordNetLemmatizer()
 # ---------------------------
 # 5) spaCy Model
 # ---------------------------
-import spacy
-from spacy.cli import download
-
+# We assume en_core_web_sm is installed via requirements.txt 
+# so we just load it here, no extra install at runtime.
 try:
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger"])
 except OSError:
-    print("Downloading spaCy model...")
-    download("en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger"])
+    st.error("spaCy model 'en_core_web_sm' not found. Make sure it's in requirements.txt!")
+    st.stop()
 
 # ---------------------------
 # 6) Stopwords & Preprocessing
@@ -133,11 +103,9 @@ def remove_urls(text: str) -> str:
     return text
 
 def strip_emojis_keep_mentions_hashtags(text: str) -> str:
-    # Remove emojis but keep # and @
     return text.encode("ascii","ignore").decode()
 
 def remove_punct_except_symbols(text: str) -> str:
-    # Keep #, @, and ' 
     keepers = ["#", "@", "'"]
     punc = string.punctuation
     for k in keepers:
@@ -166,7 +134,6 @@ def tokenize_and_filter(doc, ner_enabled=True):
     tokens = []
     for token in doc:
         lemma = token.lemma_.lower().strip()
-        # Keep named entities if NER is on
         if ner_enabled and token.ent_type_ in ["PERSON","ORG","GPE","LOC"]:
             tokens.append(lemma)
         else:
@@ -187,7 +154,6 @@ def generate_bigrams_from_texts(texts, ner_enabled=True, batch_size=500, update_
     status_text = st.empty()
 
     global nlp
-    # Toggle NER
     if ner_enabled:
         if "ner" not in nlp.pipe_names:
             nlp.add_pipe("ner", last=True)
@@ -195,7 +161,6 @@ def generate_bigrams_from_texts(texts, ner_enabled=True, batch_size=500, update_
         if "ner" in nlp.pipe_names:
             nlp.remove_pipe("ner")
 
-    # Preprocess
     prepped_texts = [preprocess_text(t) for t in texts]
 
     for i, doc in enumerate(nlp.pipe(prepped_texts, batch_size=batch_size), start=1):
@@ -203,7 +168,6 @@ def generate_bigrams_from_texts(texts, ner_enabled=True, batch_size=500, update_
         for bg in bigrams(tokens):
             yield bg
         done += 1
-
         if done % update_every == 0 or done == total:
             elapsed = time.time() - start_time
             docs_per_sec = done / elapsed if elapsed else 1
@@ -259,19 +223,17 @@ def auto_select_text_column(df: pd.DataFrame):
     return best_col
 
 def create_bigram_graph(bigrams_count: dict, max_terms=50, min_freq=1):
-    # Filter top bigrams
-    items = [(bg, freq) for bg, freq in bigrams_count.items() if freq >= min_freq]
+    items = [(bg, freq) for bg,freq in bigrams_count.items() if freq >= min_freq]
     items.sort(key=lambda x: x[1], reverse=True)
     top = items[:max_terms]
     G = nx.DiGraph()
-    for (w1, w2), freq in top:
+    for (w1,w2), freq in top:
         G.add_edge(w1, w2, weight=freq)
     return G
 
 import adjustText
 
 def reduce_label_overlap(ax, text_objs):
-    # Increase expansions to reduce collisions
     adjustText.adjust_text(
         text_objs, ax=ax,
         force_text=3.0, force_points=3.0,
@@ -283,11 +245,9 @@ def reduce_label_overlap(ax, text_objs):
 # ---------------------------
 def layout_components(G: nx.DiGraph, layout_prog="sfdp"):
     """
-    For each connected component:
-      - BFS from highest-betweenness node
-      - Graphviz layout with 'sfdp' (force-directed) or fallback
-      - Re-center, scale, random rotate
-      - Spiral offset for subgraphs
+    For each connected component, BFS from highest-betweenness node,
+    then graphviz_layout (sfdp or fallback),
+    re-center, scale, random rotate, spiral offset for subgraphs.
     """
     UG = G.to_undirected()
     comps = list(nx.connected_components(UG))
@@ -302,15 +262,20 @@ def layout_components(G: nx.DiGraph, layout_prog="sfdp"):
         sub_ug = UG.subgraph(sub_nodes).copy()
         sub_size = len(sub_nodes)
 
+        # highest betweenness node => BFS root
         bc = nx.betweenness_centrality(sub_ug)
-        root = max(bc, key=bc.get) if bc else np.random.choice(sub_nodes)
+        if bc:
+            root = max(bc, key=bc.get)
+        else:
+            import random
+            root = random.choice(sub_nodes)
 
         subD = nx.DiGraph()
         paths = nx.shortest_path(sub_ug, source=root)
         for target, path in paths.items():
             nx.add_path(subD, path)
 
-        # Copy freq
+        # Transfer freq from the main graph
         for (u,v) in subD.edges():
             if G.has_edge(u,v):
                 subD[u][v]["weight"] = G[u][v]["weight"]
@@ -319,7 +284,7 @@ def layout_components(G: nx.DiGraph, layout_prog="sfdp"):
             else:
                 subD[u][v]["weight"] = 1
 
-        # sfdp or fallback
+        # Use sfdp or fallback
         try:
             import pygraphviz
             try:
@@ -329,6 +294,7 @@ def layout_components(G: nx.DiGraph, layout_prog="sfdp"):
         except ImportError:
             sub_pos = nx.kamada_kawai_layout(subD)
 
+        # bounding box
         xs = [sub_pos[n][0] for n in sub_pos]
         ys = [sub_pos[n][1] for n in sub_pos]
         minx, maxx = min(xs), max(xs)
@@ -336,24 +302,28 @@ def layout_components(G: nx.DiGraph, layout_prog="sfdp"):
         w = maxx - minx
         h = maxy - miny
 
+        # scale factor depends on subgraph size
         scale_factor = 1.0 + 0.07 * sub_size
         scale_factor = min(scale_factor, 4.0)
 
         import random
         for node in sub_pos:
             px, py = sub_pos[node]
-            px -= (minx + w/2)
-            py -= (miny + h/2)
+            # center
+            px -= (minx + w/2.0)
+            py -= (miny + h/2.0)
+            # scale
             px *= scale_factor
             py *= scale_factor
-            angle = math.radians(random.uniform(-15,15))
+            # random rotation ±15 deg
+            angle = math.radians(random.uniform(-15, 15))
             rx = px*math.cos(angle) - py*math.sin(angle)
             ry = px*math.sin(angle) + py*math.cos(angle)
             sub_pos[node] = (rx, ry)
 
         sub_radius_bonus = sub_size * 10
         radius = base_radius + (i-1)*radius_step + sub_radius_bonus
-        rand_angle = angle_offset + random.uniform(-0.5,0.5)
+        rand_angle = angle_offset + random.uniform(-0.5, 0.5)
         offset_x = radius * math.cos(rand_angle)
         offset_y = radius * math.sin(rand_angle)
         angle_offset += math.radians(50)
@@ -362,7 +332,7 @@ def layout_components(G: nx.DiGraph, layout_prog="sfdp"):
             px, py = sub_pos[node]
             pos[node] = (px + offset_x, py + offset_y)
 
-    # fallback
+    # fallback random positions if missing
     for node in G.nodes():
         if node not in pos:
             pos[node] = np.random.rand(2)*1000.0
@@ -378,7 +348,6 @@ def build_bigram_figure(G: nx.DiGraph, layout_prog="sfdp", dpi=300, title="Bigra
 
     fig, ax = plt.subplots(figsize=(16,10), dpi=dpi)
 
-    # layout BFS + spiral + sfdp
     pos = layout_components(G, layout_prog=layout_prog)
 
     degrees = dict(G.degree())
@@ -417,7 +386,6 @@ def build_bigram_figure(G: nx.DiGraph, layout_prog="sfdp", dpi=300, title="Bigra
         connectionstyle='arc3,rad=0.3'
     )
 
-    # Place labels
     text_objs = []
     for n,(x,y) in pos.items():
         lbl = ax.text(
@@ -428,22 +396,23 @@ def build_bigram_figure(G: nx.DiGraph, layout_prog="sfdp", dpi=300, title="Bigra
         )
         text_objs.append(lbl)
 
-    # Reduce label collisions
     reduce_label_overlap(ax, text_objs)
 
-    # Color bars on opposite sides
+    # Place one colorbar on the left, the other on the right
     node_vals = list(node_colors)
-    sm_nodes = plt.cm.ScalarMappable(cmap=plt.cm.magma,
-        norm=plt.Normalize(vmin=min(node_vals), vmax=max(node_vals)))
+    sm_nodes = plt.cm.ScalarMappable(
+        cmap=plt.cm.magma,
+        norm=plt.Normalize(vmin=min(node_vals), vmax=max(node_vals))
+    )
     sm_nodes.set_array([])
-    # Move node color bar to the LEFT
     cbar_nodes = fig.colorbar(sm_nodes, ax=ax, fraction=0.02, pad=0.01, location='left')
     cbar_nodes.set_label("Term Frequency (Log Scale)", rotation=90, labelpad=8)
 
-    sm_edges = plt.cm.ScalarMappable(cmap=plt.cm.magma,
-        norm=plt.Normalize(vmin=mn, vmax=mx))
+    sm_edges = plt.cm.ScalarMappable(
+        cmap=plt.cm.magma,
+        norm=plt.Normalize(vmin=mn, vmax=mx)
+    )
     sm_edges.set_array([])
-    # Move edge color bar to the RIGHT
     cbar_edges = fig.colorbar(sm_edges, ax=ax, fraction=0.02, pad=0.03, location='right')
     cbar_edges.set_label("N-gram Frequency", rotation=270, labelpad=8)
 
@@ -473,9 +442,7 @@ def scroll_to_button():
 # ---------------------------
 def main():
     st.write("## Configuration")
-    # Default parameter changes:
-    # max_terms => default=45
-    # min_freq => default=10
+    # Final default parameters
     max_terms = st.slider("How many terms do you want in your graph?", 5, 75, 45, step=5)
     min_freq = st.slider("How many times does a term need to be said to be included?", 1, 50, 10, step=1)
 
@@ -539,7 +506,10 @@ def main():
                 selected_col = col_candidate
 
             csv_like.seek(0)
-            bigram_counts, total_rows = compute_bigrams_in_chunks(csv_like, selected_col, 20000, ner_enabled=ner_enabled)
+            bigram_counts, total_rows = compute_bigrams_in_chunks(
+                csv_like, selected_col, 20000,
+                ner_enabled=ner_enabled
+            )
             if not bigram_counts:
                 st.warning("No bigrams found.")
                 return
@@ -568,11 +538,13 @@ def main():
                 selected_col = col_candidate
 
             st.write("**Extracting bigrams...**")
-            bigram_counts, total_rows = compute_bigrams_all_at_once(global_df, selected_col, ner_enabled=ner_enabled)
+            bigram_counts, total_rows = compute_bigrams_all_at_once(
+                global_df, selected_col, ner_enabled=ner_enabled
+            )
             if not bigram_counts:
                 st.warning("No bigrams found.")
                 return
-            st.success(f"Done! Processed {total_rows} rows.")
+            st.success(f"Done! Processed {total_rows} rows!")
 
         # Build bigram table
         bigram_df = pd.DataFrame(list(bigram_counts.items()), columns=["Bigram","Frequency"])
@@ -586,9 +558,8 @@ def main():
 
             with col2:
                 st.subheader("Bigram Network Graph")
-                # Create graph
                 G = create_bigram_graph(bigram_counts, max_terms=max_terms, min_freq=min_freq)
-                if len(G) == 0:
+                if len(G)==0:
                     st.warning("No edges meet your threshold.")
                     return
 
