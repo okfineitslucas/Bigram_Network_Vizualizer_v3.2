@@ -6,5 +6,6 @@ matplotlib
 spacy
 nltk
 openpyxl
+graphviz
 pygraphviz
 adjustText
